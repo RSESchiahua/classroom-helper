@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏫 導師班級庶務助手</title>
+    <style>
+        :root {
+            --primary: #5c7cfa;
+            --bg-ok: #ebfbee; --text-ok: #2b8a3e; --border-ok: #b2f2bb;
+            --bg-fix: #fff9db; --text-fix: #e67700; --border-fix: #ffec99;
+            --bg-miss: #fff5f5; --text-miss: #c92a2a; --border-miss: #ffc9c9;
+            --bg-none: #f1f3f5; --text-none: #495057; --border-none: #dee2e6;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "-apple-system", BlinkMacSystemFont, Arial, "Noto Sans TC", sans-serif;
+            background-color: #f8f9fa; margin: 0; padding: 5px; color: #343a40;
+        }
+        .container { max-width: 100%; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; }
+        
+        /* 頁籤 */
+        .tabs { display: flex; gap: 6px; border-bottom: 2px solid #e9ecef; margin-bottom: 10px; align-items: center; }
+        .tab-btn { padding: 8px 12px; border: none; background: none; font-size: 14px; cursor: pointer; font-weight: bold; color: #868e96; }
+        .tab-btn.active { color: #364fc7; border-bottom: 2px solid #364fc7; }
+
+        /* 就地展開的區域 (不跳窗) */
+        .inline-panel { display: none; background: #f1f3f5; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #dee2e6; }
+        .inline-panel h3 { margin: 0 0 5px 0; font-size: 14px; color: #364fc7; }
+        .inline-panel textarea, .inline-panel input { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 6px; font-size: 13px; margin-bottom: 8px; }
+
+        /* 網格系統：大螢幕 2x2，手機版自動變 1 欄順暢往下排 */
+        .tian-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        @media (max-width: 768px) { .tian-grid { grid-template-columns: 1fr; } }
+        
+        .tian-card { background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+        .controls-mini { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; background: #f8f9fa; padding: 6px; border-radius: 8px; margin-bottom: 8px; }
+        
+        select, button { padding: 5px 8px; font-size: 12px; border: 1px solid #ced4da; border-radius: 6px; font-weight: bold; }
+        select { background-color: #fff; color: #495057; }
+        button { background-color: var(--primary); color: white; border: none; cursor: pointer; }
+        .btn-all-miss { background-color: #fa5252; }
+        .btn-all-fix { background-color: #fab005; }
+        .btn-all-ok { background-color: #40c057; }
+        .btn-copy-msg { background-color: #2b8a3e; margin-left: auto; }
+        
+        /* 座號小磚塊 */
+        .student-grid-mini { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+        .student-card-mini { aspect-ratio: 1 / 1; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 6px; border: 1px solid var(--border-none); font-size: 12px; font-weight: 700; user-select: none; cursor: pointer; }
+        .student-card-mini:active { transform: scale(0.9); }
+        .student-card-mini .status-icon { font-size: 8px; margin-top: 1px; }
+        
+        .status-none { background-color: var(--bg-none); color: var(--text-none); border-color: var(--border-none); }
+        .status-miss { background-color: var(--bg-miss); color: var(--text-miss); border-color: var(--border-miss); }
+        .status-fix { background-color: var(--bg-fix); color: var(--text-fix); border-color: var(--border-fix); }
+        .status-ok { background-color: var(--bg-ok); color: var(--text-ok); border-color: var(--border-ok); }
+
+        /* 就地催繳文字框 */
+        .copy-box { display: none; background: #fff9db; border: 1px dashed #e67700; padding: 8px; border-radius: 6px; margin-top: 8px; font-size: 12px; white-space: pre-wrap; }
+
+        /* 行事曆 */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; background: #f1f3f5; padding: 4px; border-radius: 8px; }
+        .cal-day-head { background: #dee2e6; text-align: center; padding: 6px 0; font-weight: bold; border-radius: 4px; font-size: 11px; }
+        .cal-cell { background: white; min-height: 65px; padding: 4px; border-radius: 4px; display: flex; flex-direction: column; }
+        .cal-cell.empty { background: #e9ecef; }
+        .cal-date { font-weight: bold; color: #868e96; font-size: 11px; }
+        .cal-events-container { display: flex; flex-direction: column; gap: 2px; }
+        .cal-event { font-size: 9px; background: #edf2ff; color: #364fc7; padding: 1px; border-radius: 2px; border-left: 2px solid #4c6ef5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" id="btn-tab-homework" onclick="switchTab('homework')">📋 簿本確認</button>
+        <button class="tab-btn" id="btn-tab-calendar" onclick="switchTab('calendar')">📅 班級行事曆</button>
+        <button onclick="toggleNamePanel()" style="margin-left: auto; background-color: #495057;">✍️ 名冊</button>
+    </div>
+
+    <div id="panel-name" class="inline-panel">
+        <h3>✍️ 全域編輯名冊 (格式：座號:姓名，逗號隔開)</h3>
+        <textarea id="panel-name-input" rows="4"></textarea>
+        <div style="display:flex; gap:5px; justify-content:flex-end;">
+            <button onclick="toggleNamePanel()" style="background:#868e96;">收起</button>
+            <button onclick="saveStudentNames()">儲存名冊</button>
+        </div>
+    </div>
+
+    <div id="homework" class="tab-content active">
+        <div class="tian-grid">
+            <div class="tian-card" id="block-1"></div>
+            <div class="tian-card" id="block-2"></div>
+            <div class="tian-card" id="block-3"></div>
+            <div class="tian-card" id="block-4"></div>
+        </div>
+    </div>
+
+    <div id="calendar" class="tab-content">
+        <div id="panel-cal-edit" class="inline-panel">
+            <h3 id="panel-cal-title">🔑 請先解鎖行事曆</h3>
+            <div id="cal-pwd-section">
+                <input type="password" id="cal-pwd-input" placeholder="請輸入密碼 (預設 1234)">
+                <button onclick="checkCalendarPassword()">確認解鎖</button>
+            </div>
+            <div id="cal-event-section" style="display:none;">
+                <input type="text" id="cal-event-input" placeholder="請輸入行程，多個請用全形分號；隔開">
+                <button onclick="saveCalendarEvent()">儲存行程</button>
+            </div>
+        </div>
+        <div class="controls-mini" style="background:none; padding:0; margin-bottom:8px;">
+            <button onclick="toggleCalendarView()" style="background-color: #7048e8;">切換 視角</button>
+            <span id="lock-status" style="font-size:12px; font-weight:bold; color:#c92a2a; margin-left:10px;">🔒 唯讀模式</span>
+        </div>
+        <h4 id="cal-title" style="margin: 5px 0; font-size:13px;">2026 年 7 月 行事曆</h4>
+        <div class="calendar-grid" id="calendar-grid">
+            <div class="cal-day-head">日</div><div class="cal-day-head">一</div><div class="cal-day-head">二</div>
+            <div class="cal-day-head">三</div><div class="cal-day-head">四</div><div class="cal-day-head">五</div><div class="cal-day-head">六</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let students = JSON.parse(localStorage.getItem('class_students')) || [];
+    if (students.length === 0) {
+        for(let i=1; i<=29; i++) { students.push({ no: i, name: i + '號' }); }
+    }
+    let hwDatabase = JSON.parse(localStorage.getItem('class_hw_db')) || {};
+    let calendarDatabase = JSON.parse(localStorage.getItem('class_cal_db')) || {};
+    let blockSettings = { 'block-1': '國習', 'block-2': '數習', 'block-3': '聯絡簿', 'block-4': '回條' };
+    const STATUSES = ['none', 'miss', 'fix', 'ok'];
+    const STATUS_ICONS = { 'none': '➖', 'miss': '❌', 'fix': '⚠️', 'ok': '✅' };
+    let isCalendarEditable = false; let currentCalView = 'month'; let selectedCalDay = null;
+
+    function playDingDongSound() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext; if(!AudioContext) return;
+            const ctx = new AudioContext();
+            const osc1 = ctx.createOscillator(); const gain1 = ctx.createGain();
+            osc1.type = 'sine'; osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+            gain1.gain.setValueAtTime(0.1, ctx.currentTime); gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+            osc1.connect(gain1); gain1.connect(ctx.destination); osc1.start(); osc1.stop(ctx.currentTime + 0.15);
+            const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain();
+            osc2.type = 'sine'; osc2.frequency.setValueAtTime(880, ctx.currentTime + 0.08);
+            gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08); gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            osc2.connect(gain2); gain2.connect(ctx.destination); osc2.start(ctx.currentTime + 0.08); osc2.stop(ctx.currentTime + 0.4);
+        } catch(e) {}
+    }
+
+    initTianGrid(); renderCalendar();
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        document.getElementById('btn-tab-' + tabId).classList.add('active');
+    }
+
+    function toggleNamePanel() {
+        let panel = document.getElementById('panel-name');
+        if(panel.style.display === 'block') { panel.style.display = 'none'; } 
+        else {
+            panel.style.display = 'block';
+            document.getElementById('panel-name-input').value = students.map(s => `${s.no}:${s.name.replace(/^\d+\s*(號)?/, '')}`).join(',');
+        }
+    }
+
+    function saveStudentNames() {
+        let rawInput = document.getElementById('panel-name-input').value;
+        try {
+            let pairs = rawInput.split(','); let newStudents = [];
+            pairs.forEach(p => {
+                let [no, name] = p.split(':');
+                if(no && name) { newStudents.push({ no: parseInt(no.trim()), name: `${no.trim()} ${name.trim()}` }); }
+            });
+            if(newStudents.length > 0) {
+                students = newStudents.sort((a,b)=>a.no - b.no);
+                localStorage.setItem('class_students', JSON.stringify(students));
+                initTianGrid(); toggleNamePanel();
+            }
+        } catch(e) { alert("名冊格式有誤！"); }
+    }
+
+    function initTianGrid() {
+        ['block-1', 'block-2', 'block-3', 'block-4'].forEach(bId => {
+            const container = document.getElementById(bId); const defaultHw = blockSettings[bId];
+            container.innerHTML = `
+                <div class="controls-mini">
+                    <select id="select-${bId}" onchange="onBlockHwChange('${bId}')">
+                        <option value="國習">國習</option><option value="數習">數習</option><option value="國作">國作</option>
+                        <option value="數作">數作</option><option value="甲本">甲本</option><option value="乙本">乙本</option>
+                        <option value="作文">作文</option><option value="學習單">學習單</option><option value="回條">回條</option>
+                        <option value="聯絡簿">聯絡簿</option>
+                    </select>
+                    <button onclick="setBlockAll('${bId}', 'miss')" class="btn-all-miss">❌</button>
+                    <button onclick="setBlockAll('${bId}', 'fix')" class="btn-all-fix">⚠️</button>
+                    <button onclick="setBlockAll('${bId}', 'ok')" class="btn-all-ok">✅</button>
+                    <button onclick="copyBlockLineMsg('${bId}')" class="btn-copy-msg">📋 催繳</button>
+                </div>
+                <div class="student-grid-mini" id="grid-${bId}"></div>
+                <div class="copy-box" id="copy-box-${bId}"></div>
+            `;
+            document.getElementById(`select-${bId}`).value = defaultHw; renderBlockGrid(bId);
+        });
+    }
+
+    function onBlockHwChange(bId) { blockSettings[bId] = document.getElementById(`select-${bId}`).value; renderBlockGrid(bId); }
+
+    function renderBlockGrid(bId) {
+        const hwKey = blockSettings[bId]; const grid = document.getElementById(`grid-${bId}`); grid.innerHTML = '';
+        if(!hwDatabase[hwKey]) { hwDatabase[hwKey] = {}; students.forEach(s => hwDatabase[hwKey][s.no] = 'none'); }
+        students.forEach(s => {
+            const status = hwDatabase[hwKey][s.no] || 'none'; const card = document.createElement('div');
+            card.className = `student-card-mini status-${status}`; card.innerHTML = `<div>${s.no}</div><div class="status-icon">${STATUS_ICONS[status]}</div>`;
+            card.onclick = () => {
+                let nextIdx = (STATUSES.indexOf(status) + 1) % STATUSES.length; let nextStatus = STATUSES[nextIdx];
+                if(nextStatus === 'ok') playDingDongSound();
+                hwDatabase[hwKey][s.no] = nextStatus; localStorage.setItem('class_hw_db', JSON.stringify(hwDatabase)); renderBlockGrid(bId);
+            };
+            grid.appendChild(card);
+        });
+    }
+
+    function setBlockAll(bId, statusTarget) {
+        const hwKey = blockSettings[bId]; students.forEach(s => hwDatabase[hwKey][s.no] = statusTarget);
+        if(statusTarget === 'ok') playDingDongSound();
+        localStorage.setItem('class_hw_db', JSON.stringify(hwDatabase)); renderBlockGrid(bId);
+    }
+
+    function copyBlockLineMsg(bId) {
+        const hwKey = blockSettings[bId]; const currentProgress = hwDatabase[hwKey] || {};
+        let missingList = []; let fixList = [];
+        students.forEach(s => {
+            const status = currentProgress[s.no] || 'none';
+            if (status === 'miss') missingList.push(s.name); if (status === 'fix') fixList.push(s.name);
+        });
+        const box = document.getElementById(`copy-box-${bId}`);
+        if (missingList.length === 0 && fixList.length === 0) {
+            box.style.display = "block"; box.innerText = `🎉 項目【${hwKey}】全班皆已齊全！`; return;
+        }
+        let msg = `各位家長好：\n以下為本週【${hwKey}】尚未完成的名單：\n`;
+        if (missingList.length > 0) msg += `❌【未繳交】：${missingList.join(', ')}\n`;
+        if (fixList.length > 0) msg += `⚠️【需訂正】：${fixList.join(', ')}\n`;
+        msg += `請協助督促孩子，謝謝！`;
+        
+        box.style.display = "block"; box.innerText = "📋 已自動複製以下文字：\n\n" + msg;
+        navigator.clipboard.writeText(msg).catch(()=>{});
+    }
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendar-grid'); while(grid.children.length > 7) { grid.removeChild(grid.lastChild); }
+        if (currentCalView === 'month') {
+            document.getElementById('cal-title').innerText = "2026 年 7 月 (月行事曆)";
+            for(let i=0; i<3; i++) { let e = document.createElement('div'); e.className = 'cal-cell empty'; grid.appendChild(e); }
+            for(let d=1; d<=31; d++) { createDayCell(d, grid); }
+        } else {
+            document.getElementById('cal-title').innerText = "2026 年 7 月 (當週行事曆)";
+            for(let i=0; i<3; i++) { let e = document.createElement('div'); e.className = 'cal-cell empty'; grid.appendChild(e); }
+            for(let d=1; d<=5; d++) { createDayCell(d, grid); }
+        }
+    }
+
+    function createDayCell(day, targetGrid) {
+        let cell = document.createElement('div'); cell.className = 'cal-cell';
+        let events = calendarDatabase[day] || []; let eventsHtml = events.map(ev => `<div class="cal-event">${ev}</div>`).join('');
+        cell.innerHTML = `<div class="cal-date">${day}</div><div class="cal-events-container">${eventsHtml}</div>`;
+        cell.onclick = () => {
+            selectedCalDay = day; document.getElementById('panel-cal-edit').style.display = 'block';
+            if(!isCalendarEditable) {
+                document.getElementById('panel-cal-title').innerText = `🔑 請輸入密碼以編輯 ${day} 日行程`;
+                document.getElementById('cal-pwd-section').style.display = 'block';
+                document.getElementById('cal-event-section').style.display = 'none';
+            } else {
+                document.getElementById('panel-cal-title').innerText = `📌 編輯 ${day} 日行程`;
+                document.getElementById('cal-pwd-section').style.display = 'none';
+                document.getElementById('cal-event-section').style.display = 'block';
+                document.getElementById('cal-event-input').value = events.join('；');
+            }
+        };
+        targetGrid.appendChild(cell);
+    }
+
+    function checkCalendarPassword() {
+        if(document.getElementById('cal-pwd-input').value === "1234") {
+            isCalendarEditable = true; document.getElementById('lock-status').innerText = "🔓 編輯模式";
+            document.getElementById('lock-status').style.color = "#2b8a3e";
+            document.getElementById('cal-pwd-section').style.display = 'none';
+            document.getElementById('cal-event-section').style.display = 'block';
+            document.getElementById('cal-event-input').value = (calendarDatabase[selectedCalDay] || []).join('；');
+        } else { alert("密碼錯誤！"); }
+    }
+
+    function saveCalendarEvent() {
+        let text = document.getElementById('cal-event-input').value;
+        if(text.trim() === "") { delete calendarDatabase[selectedCalDay]; } 
+        else { calendarDatabase[selectedCalDay] = text.split('；').map(e => e.trim()).filter(e => e !== ""); }
+        localStorage.setItem('class_cal_db', JSON.stringify(calendarDatabase));
+        renderCalendar(); document.getElementById('panel-cal-edit').style.display = 'none';
+    }
+
+    function toggleCalendarView() { currentCalView = (currentCalView === 'month') ? 'week' : 'month'; renderCalendar(); }
+</script>
+</body>
+</html>
