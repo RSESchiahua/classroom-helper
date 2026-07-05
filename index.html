@@ -92,7 +92,7 @@
         <button class="tab-btn" id="btn-tab-calendar" onclick="switchTab('calendar')">📅 班級行事曆</button>
     </div>
 
-    <!-- 就地展開的名冊編輯面板 (僅簿本確認可見) -->
+    <!-- 就地展開的名冊編輯面板 -->
     <div id="panel-name" class="inline-panel">
         <h3>✍️ 編輯班級學生名冊 (格式如：座號:姓名，請用英文逗號隔開)</h3>
         <p style="font-size:11px; color:#f76707; margin: 0 0 6px 0;">※ 目前為預設 1~29 號，拿到新學期名冊後可在此直接貼上修改。</p>
@@ -118,9 +118,8 @@
         </div>
     </div>
 
-    <!-- 頁籤二：行事曆 (移除所有密碼與唯讀限制) -->
+    <!-- 頁籤二：行事曆 -->
     <div id="calendar" class="tab-content" style="display: none;">
-        <!-- 就地展開的行事曆編輯面板 (直接開放編輯功能) -->
         <div id="panel-cal-edit" class="inline-panel">
             <h3 id="panel-cal-title">📌 編輯行程</h3>
             <div id="cal-event-section">
@@ -138,7 +137,6 @@
         
         <h4 id="cal-title" style="margin: 5px 0; font-size:14px; color:#d9480f; font-weight: bold;">2026 年 7 月 行事曆</h4>
         
-        <!-- 週一到週日排法 -->
         <div class="calendar-grid" id="calendar-grid">
             <div class="cal-day-head">一</div><div class="cal-day-head">二</div><div class="cal-day-head">三</div>
             <div class="cal-day-head">四</div><div class="cal-day-head">五</div>
@@ -162,10 +160,13 @@
     const STATUS_ICONS = { 'none': '➖', 'miss': '❌', 'fix': '⚠️', 'ok': '✅' };
     let currentCalView = 'month'; let selectedCalDay = null;
 
+    // 🚀 優化音效播放：加入強制喚醒，解決手機端靜音問題
     function playDingDongSound() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext; if(!AudioContext) return;
             const ctx = new AudioContext();
+            if (ctx.state === 'suspended') { ctx.resume(); } // 👈 關鍵修復：強制讓被手機掛起的音效重新動起來
+            
             const osc1 = ctx.createOscillator(); const gain1 = ctx.createGain();
             osc1.type = 'sine'; osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
             gain1.gain.setValueAtTime(0.1, ctx.currentTime); gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
@@ -230,14 +231,15 @@
             const container = document.getElementById(bId); const defaultHw = blockSettings[bId];
             let selectOptionsHtml = customOptions.map(opt => `<option value="${opt}">${opt}</option>`).join('');
             
+            // 📝 這裡將全選按鈕替換為您指定的漂亮新標籤文字
             container.innerHTML = `
                 <div class="controls-mini">
                     <select id="select-${bId}" onchange="onBlockHwChange('${bId}')">
                         ${selectOptionsHtml}
                     </select>
-                    <button onclick="setBlockAllConfirm('${bId}', 'miss')" class="btn-all-miss">全缺</button>
-                    <button onclick="setBlockAllConfirm('${bId}', 'fix')" class="btn-all-fix">全改</button>
-                    <button onclick="setBlockAllConfirm('${bId}', 'ok')" class="btn-all-ok">全過</button>
+                    <button onclick="setBlockAllConfirm('${bId}', 'miss')" class="btn-all-miss">❌全缺</button>
+                    <button onclick="setBlockAllConfirm('${bId}', 'fix')" class="btn-all-fix">⚠️全訂正</button>
+                    <button onclick="setBlockAllConfirm('${bId}', 'ok')" class="btn-all-ok">✅全OK</button>
                     <button onclick="copyBlockLineMsg('${bId}')" class="btn-copy-msg">📋 催繳</button>
                 </div>
                 <div class="student-grid-mini" id="grid-${bId}"></div>
@@ -267,9 +269,10 @@
         });
     }
 
+    // 🛡️ 防誤觸全選按鍵：對話框提示內容也同步更新為新按鈕文字
     function setBlockAllConfirm(bId, statusTarget) {
         const hwKey = blockSettings[bId];
-        let statusName = statusTarget === 'miss' ? '❌ 全班缺交' : (statusTarget === 'fix' ? '⚠️ 全班需訂正' : '✅ 全班通過');
+        let statusName = statusTarget === 'miss' ? '❌全缺' : (statusTarget === 'fix' ? '⚠️全訂正' : '✅全OK');
         let isSure = confirm(`您確定要將項目【${hwKey}】一鍵變更為「${statusName}」嗎？\n(這會覆蓋目前的個別紀錄喔！)`);
         if(isSure) {
             students.forEach(s => hwDatabase[hwKey][s.no] = statusTarget);
@@ -309,7 +312,6 @@
         let events = calendarDatabase[day] || []; let eventsHtml = events.map(ev => `<div class="cal-event">${ev}</div>`).join('');
         cell.innerHTML = `<div class="cal-date">${day}</div><div class="cal-events-container">${eventsHtml}</div>`;
         
-        // 點擊直接就地開啟編輯，免去密碼限制
         cell.onclick = () => {
             selectedCalDay = day; 
             document.getElementById('panel-cal-edit').style.display = 'block';
